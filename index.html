@@ -19,8 +19,8 @@
         .value-box { display: flex; align-items: center; background: #f0fdf4; border-color: #bbf7d0; color: #166534; min-height: 48px; }
         button.btn { width: 100%; padding: 12px; background: #093a6a; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 10px; }
         button.btn:hover { background: #062544; }
-        .error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 12px; border-radius: 8px; font-weight: 600; margin-top: 15px; font-size: 14px; }
-        .profile-box { background: #ffffff; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; color: #333; }
+        .error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 12px; border-radius: 8px; font-weight: 600; margin-top: 15px; font-size: 14px; text-align: center; }
+        .profile-box { background: #ffffff; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; color: #333; text-align: center; }
         .hidden { display: none !important; }
     </style>
 </head>
@@ -78,15 +78,15 @@
 
 <script>
     const firebaseConfig = {
-  apiKey: "AIzaSyDzmF9971PlauZ3uZdzMZZqH1OYwKD0Wpk",
-  authDomain: "m-cal-d649b.firebaseapp.com",
-  databaseURL: "https://m-cal-d649b-default-rtdb.firebaseio.com",
-  projectId: "m-cal-d649b",
-  storageBucket: "m-cal-d649b.firebasestorage.app",
-  messagingSenderId: "304163465048",
-  appId: "1:304163465048:web:1a38034cad20148c6be72d",
-  measurementId: "G-BTHLSLPHLK"
-};
+        apiKey: "AIzaSyDzmF9971PlauZ3uZdzMZZqH1OYwKD0Wpk",
+        authDomain: "m-cal-d649b.firebaseapp.com",
+        databaseURL: "https://m-cal-d649b-default-rtdb.firebaseio.com",
+        projectId: "m-cal-d649b",
+        storageBucket: "m-cal-d649b.firebasestorage.app",
+        messagingSenderId: "304163465048",
+        appId: "1:304163465048:web:1a38034cad20148c6be72d",
+        measurementId: "G-BTHLSLPHLK"
+    };
 
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
@@ -107,12 +107,12 @@
             db.ref('users/' + mobileKey).on('value', async (snapshot) => {
                 let data = snapshot.val();
                 if (!data) {
-                    alert("User account deleted or not found.");
+                    showInPageLoginError("User account deleted or not found.");
                     auth.signOut();
                     return;
                 }
                 if (data.deviceId && data.deviceId !== deviceId) {
-                    alert("This account is active on another device! Contact Admin.");
+                    showInPageLoginError("This account is active on another device! Contact Admin.");
                     await auth.signOut();
                     showLogin();
                     return;
@@ -129,15 +129,20 @@
         }
     });
 
+    function showInPageLoginError(msg) {
+        let errBox = document.getElementById('loginError');
+        errBox.innerText = msg;
+        errBox.classList.remove('hidden');
+    }
+
     function loginUser() {
         let mobile = document.getElementById('loginMobile').value.trim();
         let pass = document.getElementById('loginPassword').value.trim();
         let errBox = document.getElementById('loginError');
         errBox.classList.add('hidden');
 
-        if (mobile.length !== 10) {
-            errBox.innerText = "Please enter a valid 10-digit mobile number!";
-            errBox.classList.remove('hidden');
+        if (mobile.length !== 10 || !pass) {
+            showInPageLoginError("Please enter a valid 10-digit mobile number and password!");
             return;
         }
 
@@ -149,7 +154,7 @@
                 db.ref('users/' + mobileKey).once('value').then((snapshot) => {
                     let data = snapshot.val();
                     if (data && data.deviceId && data.deviceId !== deviceId) {
-                        alert("Access Denied: Already active on another phone!");
+                        showInPageLoginError("Access Denied: Already active on another phone!");
                         auth.signOut();
                     } else {
                         db.ref('users/' + mobileKey).update({ deviceId: deviceId });
@@ -157,8 +162,7 @@
                 });
             })
             .catch((error) => {
-                errBox.innerText = "Invalid Mobile Number or Password!";
-                errBox.classList.remove('hidden');
+                showInPageLoginError("Invalid Mobile Number or Password!");
             });
     }
 
@@ -220,6 +224,7 @@
 
         let mode = currentUserData.calc_mode || 'authentic';
 
+        // 1. STANDARD METHOD: No Single-Axis, No Fine, Pure Standard Formula
         if (mode === 'standard') {
             let fatRate = (fat / 100) * 424.68;
             let snfRate = (snf / 100) * 283.12;
@@ -230,8 +235,9 @@
             return;
         }
 
+        // Standard Rejection check for non-authentic modes if below limits
         if (mode !== 'authentic' && (fat < 3.2 || snf < 8.0)) {
-            errorBox.innerText = "Milk having less than 3.2% fat and 8.0% SNF will not be accepted.";
+            errorBox.innerText = "Milk having less than 3.2% fat and 8.0% SNF will not be accepted[cite: 2].";
             errorBox.classList.remove('hidden');
             document.getElementById('resRate').innerText = "0.00";
             document.getElementById('resAmount').innerText = "0.00";
@@ -239,20 +245,23 @@
         }
 
         let ratePerLitre = 0;
+
+        // Single Axis Pricing Check for Authentic & Fine modes[cite: 2, 3]
         if (fat >= 6.0 && snf >= 8.4) {
             let baseSingleAxisRate = (fat * 843.33) / 100;
             let snfDifference = 9.0 - snf;
             if (snfDifference > 0) {
-                let deductions = (snfDifference / 0.1) * 0.24;
+                let deductions = (snfDifference / 0.1) * 0.24;[cite: 3]
                 baseSingleAxisRate -= deductions;
             }
             ratePerLitre = baseSingleAxisRate;
         } else {
-            let fatRate = (fat / 100) * 424.68;
-            let snfRate = (snf / 100) * 283.12;
+            let fatRate = (fat / 100) * 424.68;[cite: 2]
+            let snfRate = (snf / 100) * 283.12;[cite: 2]
             ratePerLitre = fatRate + snfRate;
         }
 
+        // 2. FINE METHOD: Deduction of 0.50 Rs per 0.1% SNF shortage below 8.0
         if (mode === 'fine' && snf < 8.0) {
             let snfShortage = 8.0 - snf;
             let fineDeduction = (snfShortage / 0.1) * 0.50;
