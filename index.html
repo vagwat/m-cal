@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Milk Rate Calculator</title>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f1125; padding: 15px; margin: 0; }
+        .container { max-width: 400px; background: #588ea1; padding: 20px; border-radius: 12px; box-shadow: 0 6px 15px rgba(16, 217, 244, 0.7); margin: auto; border: 2px solid rgb(8, 109, 106); }
+        h2 { text-align: center; color: #093a6a; font-size: 22px; margin-bottom: 20px; }
+        .form-group, .result-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
+        label { flex: 1; font-weight: 600; color: #000ecc; font-size: 18px; }
+        input, .value-box { flex: 1.2; padding: 12px; box-sizing: border-box; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 18px; background: #ffffff; color: #111; font-weight: bold; }
+        input:focus { border-color: #3498db; outline: none; background-color: #82c1ff; }
+        .value-box { display: flex; align-items: center; background: #f0fdf4; border-color: #bbf7d0; color: #166534; min-height: 48px; }
+        button.btn { width: 100%; padding: 12px; background: #093a6a; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button.btn:hover { background: #062544; }
+        .error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 12px; border-radius: 8px; font-weight: 600; margin-top: 15px; font-size: 14px; }
+        .profile-box { background: #ffffff; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; color: #333; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div class="container" id="loginScreen">
+    <h2>User Login</h2>
+    <div class="form-group" style="flex-direction: column; align-items: stretch;">
+        <label>Mobile Number:</label>
+        <input type="tel" id="loginMobile" placeholder="Enter Mobile Number" maxlength="10">
+    </div>
+    <div class="form-group" style="flex-direction: column; align-items: stretch;">
+        <label>Password:</label>
+        <input type="password" id="loginPassword" placeholder="Enter Password">
+    </div>
+    <button class="btn" onclick="loginUser()">Login</button>
+    <div id="loginError" class="error hidden"></div>
+</div>
+
+<!-- CALCULATOR SCREEN -->
+<div class="container hidden" id="calcScreen">
+    <h2>Milk Rate Calculator</h2>
+    
+    <div class="profile-box" id="profileInfo"></div>
+
+    <div class="form-group">
+        <label>Quantity:</label>
+        <input type="number" id="qty" value="1" inputmode="decimal">
+    </div>
+    
+    <div class="form-group">
+        <label>FAT (%):</label>
+        <input type="number" step="0.1" id="fat" placeholder="FAT" inputmode="decimal">
+    </div>
+    
+    <div class="form-group">
+        <label>SNF (%):</label>
+        <input type="number" step="0.1" id="snf" placeholder="SNF" inputmode="decimal">
+    </div>
+
+    <div class="result-row">
+        <label>Rate:</label>
+        <div class="value-box">₹<span id="resRate">0.00</span></div>
+    </div>
+
+    <div class="result-row">
+        <label>Amount:</label>
+        <div class="value-box">₹<span id="resAmount">0.00</span></div>
+    </div>
+    
+    <div id="errorBox" class="error hidden"></div>
+    <button class="btn" style="background: #991b1b; margin-top: 15px;" onclick="logoutUser()">Logout</button>
+</div>
+
+<script>
+    const firebaseConfig = {
+  apiKey: "AIzaSyDzmF9971PlauZ3uZdzMZZqH1OYwKD0Wpk",
+  authDomain: "m-cal-d649b.firebaseapp.com",
+  databaseURL: "https://m-cal-d649b-default-rtdb.firebaseio.com",
+  projectId: "m-cal-d649b",
+  storageBucket: "m-cal-d649b.firebasestorage.app",
+  messagingSenderId: "304163465048",
+  appId: "1:304163465048:web:1a38034cad20148c6be72d",
+  measurementId: "G-BTHLSLPHLK"
+};
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+
+    const LATEST_VERSION = "v2"; 
+    let currentUserData = { mode: 'authentic', version: 'v1' };
+
+    let deviceId = localStorage.getItem('device_unique_id');
+    if (!deviceId) {
+        deviceId = 'dev_' + Math.random().toString(36).substring(2) + Date.now();
+        localStorage.setItem('device_unique_id', deviceId);
+    }
+
+    auth.onAuthStateChanged(async (user) => {
+        if (user) {
+            let mobileKey = user.email.split('@')[0];
+            db.ref('users/' + mobileKey).on('value', async (snapshot) => {
+                let data = snapshot.val();
+                if (!data) {
+                    alert("User account deleted or not found.");
+                    auth.signOut();
+                    return;
+                }
+                if (data.deviceId && data.deviceId !== deviceId) {
+                    alert("This account is active on another device! Contact Admin.");
+                    await auth.signOut();
+                    showLogin();
+                    return;
+                }
+                if (!data.deviceId) {
+                    db.ref('users/' + mobileKey).update({ deviceId: deviceId });
+                }
+                currentUserData = data;
+                updateProfileUI();
+                showCalculator();
+            });
+        } else {
+            showLogin();
+        }
+    });
+
+    function loginUser() {
+        let mobile = document.getElementById('loginMobile').value.trim();
+        let pass = document.getElementById('loginPassword').value.trim();
+        let errBox = document.getElementById('loginError');
+        errBox.classList.add('hidden');
+
+        if (mobile.length !== 10) {
+            errBox.innerText = "Please enter a valid 10-digit mobile number!";
+            errBox.classList.remove('hidden');
+            return;
+        }
+
+        let fakeEmail = mobile + "@milkapp.com";
+
+        auth.signInWithEmailAndPassword(fakeEmail, pass)
+            .then((userCredential) => {
+                let mobileKey = mobile;
+                db.ref('users/' + mobileKey).once('value').then((snapshot) => {
+                    let data = snapshot.val();
+                    if (data && data.deviceId && data.deviceId !== deviceId) {
+                        alert("Access Denied: Already active on another phone!");
+                        auth.signOut();
+                    } else {
+                        db.ref('users/' + mobileKey).update({ deviceId: deviceId });
+                    }
+                });
+            })
+            .catch((error) => {
+                errBox.innerText = "Invalid Mobile Number or Password!";
+                errBox.classList.remove('hidden');
+            });
+    }
+
+    function logoutUser() {
+        auth.signOut().then(() => showLogin());
+    }
+
+    function showLogin() {
+        document.getElementById('loginScreen').classList.remove('hidden');
+        document.getElementById('calcScreen').classList.add('hidden');
+    }
+
+    function showCalculator() {
+        document.getElementById('loginScreen').classList.add('hidden');
+        document.getElementById('calcScreen').classList.remove('hidden');
+    }
+
+    function updateProfileUI() {
+        let profileDiv = document.getElementById('profileInfo');
+        let isLatest = currentUserData.version === LATEST_VERSION;
+        profileDiv.innerHTML = `
+            <b>Mode:</b> ${currentUserData.calc_mode.toUpperCase()} | 
+            <b>Version:</b> ${currentUserData.version} 
+            ${!isLatest ? '<br><span style="color:red; font-weight:bold;">⚠️ New Update Available! Contact Admin.</span>' : '<span style="color:green; font-weight:bold;">(Latest)</span>'}
+        `;
+    }
+
+    const inputs = document.querySelectorAll('#calcScreen input');
+    inputs.forEach(input => {
+        input.addEventListener('focus', function() { this.select(); });
+        input.addEventListener('input', calculateMilk);
+        input.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                let next = getNextInput(this);
+                if (next) next.focus();
+            }
+        });
+    });
+
+    function getNextInput(current) {
+        let index = Array.from(inputs).indexOf(current);
+        return inputs[(index + 1) % inputs.length];
+    }
+
+    function calculateMilk() {
+        let qty = parseFloat(document.getElementById('qty').value) || 0;
+        let fat = parseFloat(document.getElementById('fat').value) || 0;
+        let snf = parseFloat(document.getElementById('snf').value) || 0;
+        
+        let errorBox = document.getElementById('errorBox');
+        errorBox.classList.add('hidden');
+
+        if (fat === 0 || snf === 0) {
+            document.getElementById('resRate').innerText = "0.00";
+            document.getElementById('resAmount').innerText = "0.00";
+            return;
+        }
+
+        let mode = currentUserData.calc_mode || 'authentic';
+
+        if (mode === 'standard') {
+            let fatRate = (fat / 100) * 424.68;
+            let snfRate = (snf / 100) * 283.12;
+            let ratePerLitre = fatRate + snfRate;
+            let totalAmount = ratePerLitre * qty;
+            document.getElementById('resRate').innerText = ratePerLitre.toFixed(2);
+            document.getElementById('resAmount').innerText = totalAmount.toFixed(2);
+            return;
+        }
+
+        if (mode !== 'authentic' && (fat < 3.2 || snf < 8.0)) {
+            errorBox.innerText = "Milk having less than 3.2% fat and 8.0% SNF will not be accepted.";
+            errorBox.classList.remove('hidden');
+            document.getElementById('resRate').innerText = "0.00";
+            document.getElementById('resAmount').innerText = "0.00";
+            return;
+        }
+
+        let ratePerLitre = 0;
+        if (fat >= 6.0 && snf >= 8.4) {
+            let baseSingleAxisRate = (fat * 843.33) / 100;
+            let snfDifference = 9.0 - snf;
+            if (snfDifference > 0) {
+                let deductions = (snfDifference / 0.1) * 0.24;
+                baseSingleAxisRate -= deductions;
+            }
+            ratePerLitre = baseSingleAxisRate;
+        } else {
+            let fatRate = (fat / 100) * 424.68;
+            let snfRate = (snf / 100) * 283.12;
+            ratePerLitre = fatRate + snfRate;
+        }
+
+        if (mode === 'fine' && snf < 8.0) {
+            let snfShortage = 8.0 - snf;
+            let fineDeduction = (snfShortage / 0.1) * 0.50;
+            ratePerLitre -= fineDeduction;
+            if (ratePerLitre < 0) ratePerLitre = 0;
+        }
+
+        let totalAmount = ratePerLitre * qty;
+        document.getElementById('resRate').innerText = ratePerLitre.toFixed(2);
+        document.getElementById('resAmount').innerText = totalAmount.toFixed(2);
+    }
+</script>
+
+</body>
+</html>
