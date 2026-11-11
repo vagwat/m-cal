@@ -19,7 +19,7 @@
         .value-box { display: flex; align-items: center; background: #f0fdf4; border-color: #bbf7d0; color: #166534; min-height: 48px; }
         button.btn { width: 100%; padding: 12px; background: #093a6a; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 10px; }
         button.btn:hover { background: #062544; }
-        .error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 12px; border-radius: 8px; font-weight: 600; margin-top: 15px; font-size: 14px; text-align: center; }
+        .error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 12px; border-radius: 8px; font-weight: 600; margin-top: 15px; font-size: 14px; text-align: center; display: block !important; }
         .profile-box { background: #ffffff; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; color: #333; text-align: center; }
         .hidden { display: none !important; }
     </style>
@@ -37,7 +37,7 @@
         <label>Password:</label>
         <input type="password" id="loginPassword" placeholder="Enter Password">
     </div>
-    <button class="btn" onclick="loginUser()">Login</button>
+    <button class="btn" id="loginBtn" onclick="loginUser()">Login</button>
     <div id="loginError" class="error hidden"></div>
 </div>
 
@@ -107,7 +107,7 @@
             db.ref('users/' + mobileKey).on('value', async (snapshot) => {
                 let data = snapshot.val();
                 if (!data) {
-                    showInPageLoginError("User account deleted or not found.");
+                    showInPageLoginError("User account data not found in database.");
                     auth.signOut();
                     return;
                 }
@@ -133,18 +133,26 @@
         let errBox = document.getElementById('loginError');
         errBox.innerText = msg;
         errBox.classList.remove('hidden');
+        let btn = document.getElementById('loginBtn');
+        btn.innerText = "Login";
+        btn.disabled = false;
     }
 
     function loginUser() {
         let mobile = document.getElementById('loginMobile').value.trim();
         let pass = document.getElementById('loginPassword').value.trim();
         let errBox = document.getElementById('loginError');
+        let btn = document.getElementById('loginBtn');
+        
         errBox.classList.add('hidden');
 
         if (mobile.length !== 10 || !pass) {
-            showInPageLoginError("Please enter a valid 10-digit mobile number and password!");
+            showInPageLoginError("Enter valid 10-digit mobile & password!");
             return;
         }
+
+        btn.innerText = "Logging in...";
+        btn.disabled = true;
 
         let fakeEmail = mobile + "@milkapp.com";
 
@@ -162,7 +170,7 @@
                 });
             })
             .catch((error) => {
-                showInPageLoginError("Invalid Mobile Number or Password!");
+                showInPageLoginError("Login Failed: " + error.message);
             });
     }
 
@@ -173,6 +181,9 @@
     function showLogin() {
         document.getElementById('loginScreen').classList.remove('hidden');
         document.getElementById('calcScreen').classList.add('hidden');
+        let btn = document.getElementById('loginBtn');
+        btn.innerText = "Login";
+        btn.disabled = false;
     }
 
     function showCalculator() {
@@ -224,7 +235,6 @@
 
         let mode = currentUserData.calc_mode || 'authentic';
 
-        // 1. STANDARD METHOD: No Single-Axis, No Fine, Pure Standard Formula
         if (mode === 'standard') {
             let fatRate = (fat / 100) * 424.68;
             let snfRate = (snf / 100) * 283.12;
@@ -235,9 +245,8 @@
             return;
         }
 
-        // Standard Rejection check for non-authentic modes if below limits
         if (mode !== 'authentic' && (fat < 3.2 || snf < 8.0)) {
-            errorBox.innerText = "Milk having less than 3.2% fat and 8.0% SNF will not be accepted[cite: 2].";
+            errorBox.innerText = "Milk having less than 3.2% fat and 8.0% SNF will not be accepted[span_0](start_span)[span_0](end_span).";
             errorBox.classList.remove('hidden');
             document.getElementById('resRate').innerText = "0.00";
             document.getElementById('resAmount').innerText = "0.00";
@@ -245,23 +254,20 @@
         }
 
         let ratePerLitre = 0;
-
-        // Single Axis Pricing Check for Authentic & Fine modes[cite: 2, 3]
         if (fat >= 6.0 && snf >= 8.4) {
             let baseSingleAxisRate = (fat * 843.33) / 100;
             let snfDifference = 9.0 - snf;
             if (snfDifference > 0) {
-                let deductions = (snfDifference / 0.1) * 0.24;[cite: 3]
+                let deductions = (snfDifference / 0.1) * 0.24;[span_1](start_span)[span_1](end_span)
                 baseSingleAxisRate -= deductions;
             }
             ratePerLitre = baseSingleAxisRate;
         } else {
-            let fatRate = (fat / 100) * 424.68;[cite: 2]
-            let snfRate = (snf / 100) * 283.12;[cite: 2]
+            let fatRate = (fat / 100) * 424.68;[span_2](start_span)[span_2](end_span)
+            let snfRate = (snf / 100) * 283.12;[span_3](start_span)[span_3](end_span)
             ratePerLitre = fatRate + snfRate;
         }
 
-        // 2. FINE METHOD: Deduction of 0.50 Rs per 0.1% SNF shortage below 8.0
         if (mode === 'fine' && snf < 8.0) {
             let snfShortage = 8.0 - snf;
             let fineDeduction = (snfShortage / 0.1) * 0.50;
