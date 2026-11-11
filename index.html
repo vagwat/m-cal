@@ -246,7 +246,7 @@
         }
 
         if (mode !== 'authentic' && (fat < 3.2 || snf < 8.0)) {
-            errorBox.innerText = "Milk having less than 3.2% fat and 8.0% SNF will not be accepted[span_0](start_span)[span_0](end_span).";
+            errorBox.innerText = "Milk having less than 3.2% fat and 8.0% SNF will not be accepted[cite: 2].";
             errorBox.classList.remove('hidden');
             document.getElementById('resRate').innerText = "0.00";
             document.getElementById('resAmount').innerText = "0.00";
@@ -258,13 +258,13 @@
             let baseSingleAxisRate = (fat * 843.33) / 100;
             let snfDifference = 9.0 - snf;
             if (snfDifference > 0) {
-                let deductions = (snfDifference / 0.1) * 0.24;[span_1](start_span)[span_1](end_span)
+                let deductions = (snfDifference / 0.1) * 0.24;[cite: 3]
                 baseSingleAxisRate -= deductions;
             }
             ratePerLitre = baseSingleAxisRate;
         } else {
-            let fatRate = (fat / 100) * 424.68;[span_2](start_span)[span_2](end_span)
-            let snfRate = (snf / 100) * 283.12;[span_3](start_span)[span_3](end_span)
+            let fatRate = (fat / 100) * 424.68;[cite: 2]
+            let snfRate = (snf / 100) * 283.12;[cite: 2]
             ratePerLitre = fatRate + snfRate;
         }
 
