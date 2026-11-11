@@ -49,17 +49,17 @@
 
     <div class="form-group">
         <label>Quantity:</label>
-        <input type="number" id="qty" value="1" inputmode="decimal">
+        <input type="number" id="qty" value="1" oninput="calculateMilk()" inputmode="decimal">
     </div>
     
     <div class="form-group">
         <label>FAT (%):</label>
-        <input type="number" step="0.1" id="fat" placeholder="FAT" inputmode="decimal">
+        <input type="number" step="0.1" id="fat" placeholder="FAT" oninput="calculateMilk()" inputmode="decimal">
     </div>
     
     <div class="form-group">
         <label>SNF (%):</label>
-        <input type="number" step="0.1" id="snf" placeholder="SNF" inputmode="decimal">
+        <input type="number" step="0.1" id="snf" placeholder="SNF" oninput="calculateMilk()" inputmode="decimal">
     </div>
 
     <div class="result-row">
@@ -134,8 +134,10 @@
         errBox.innerText = msg;
         errBox.classList.remove('hidden');
         let btn = document.getElementById('loginBtn');
-        btn.innerText = "Login";
-        btn.disabled = false;
+        if(btn) {
+            btn.innerText = "Login";
+            btn.disabled = false;
+        }
     }
 
     function loginUser() {
@@ -182,8 +184,10 @@
         document.getElementById('loginScreen').classList.remove('hidden');
         document.getElementById('calcScreen').classList.add('hidden');
         let btn = document.getElementById('loginBtn');
-        btn.innerText = "Login";
-        btn.disabled = false;
+        if(btn) {
+            btn.innerText = "Login";
+            btn.disabled = false;
+        }
     }
 
     function showCalculator() {
@@ -199,24 +203,6 @@
             <b>Version:</b> ${currentUserData.version} 
             ${!isLatest ? '<br><span style="color:red; font-weight:bold;">⚠️ New Update Available! Contact Admin.</span>' : '<span style="color:green; font-weight:bold;">(Latest)</span>'}
         `;
-    }
-
-    const inputs = document.querySelectorAll('#calcScreen input');
-    inputs.forEach(input => {
-        input.addEventListener('focus', function() { this.select(); });
-        input.addEventListener('input', calculateMilk);
-        input.addEventListener('keydown', function(event) {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                let next = getNextInput(this);
-                if (next) next.focus();
-            }
-        });
-    });
-
-    function getNextInput(current) {
-        let index = Array.from(inputs).indexOf(current);
-        return inputs[(index + 1) % inputs.length];
     }
 
     function calculateMilk() {
@@ -235,44 +221,46 @@
 
         let mode = currentUserData.calc_mode || 'authentic';
 
-        if (mode === 'standard') {
-            let fatRate = (fat / 100) * 424.68;
-            let snfRate = (snf / 100) * 283.12;
-            let ratePerLitre = fatRate + snfRate;
-            let totalAmount = ratePerLitre * qty;
-            document.getElementById('resRate').innerText = ratePerLitre.toFixed(2);
-            document.getElementById('resAmount').innerText = totalAmount.toFixed(2);
-            return;
-        }
-
-        if (mode !== 'authentic' && (fat < 3.2 || snf < 8.0)) {
-            errorBox.innerText = "Milk having less than 3.2% fat and 8.0% SNF will not be accepted[cite: 2].";
-            errorBox.classList.remove('hidden');
-            document.getElementById('resRate').innerText = "0.00";
-            document.getElementById('resAmount').innerText = "0.00";
-            return;
-        }
+        // Rejection check ONLY for 'fine' mode if FAT < 3.2 or SNF < 8.0
+     //   if (mode === 'fine' && (fat < 3.2 || snf < 8.0)) {
+      //      errorBox.innerText = "Milk having less than 3.2% fat and 8.0% SNF will not be accepted.";
+       //     errorBox.classList.remove('hidden');
+       //     document.getElementById('resRate').innerText = "0.00";
+      //      document.getElementById('resAmount').innerText = "0.00";
+   //         return;
+   //     }
 
         let ratePerLitre = 0;
-        if (fat >= 6.0 && snf >= 8.4) {
-            let baseSingleAxisRate = (fat * 843.33) / 100;
-            let snfDifference = 9.0 - snf;
-            if (snfDifference > 0) {
-                let deductions = (snfDifference / 0.1) * 0.24;[cite: 3]
-                baseSingleAxisRate -= deductions;
-            }
-            ratePerLitre = baseSingleAxisRate;
-        } else {
-            let fatRate = (fat / 100) * 424.68;[cite: 2]
-            let snfRate = (snf / 100) * 283.12;[cite: 2]
-            ratePerLitre = fatRate + snfRate;
-        }
 
-        if (mode === 'fine' && snf < 8.0) {
-            let snfShortage = 8.0 - snf;
-            let fineDeduction = (snfShortage / 0.1) * 0.50;
-            ratePerLitre -= fineDeduction;
-            if (ratePerLitre < 0) ratePerLitre = 0;
+        // 1. AUTHENTIC MODE: Keeps Single-Axis criteria, no rejection for low fat/snf, no fine.
+        if (mode === 'authentic') {
+            if (fat >= 6.0 && snf >= 8.4) {
+                let baseSingleAxisRate = (fat * 843.33) / 100;
+                let snfDifference = 9.0 - snf;
+                if (snfDifference > 0) {
+                    let deductions = (snfDifference / 0.1) * 0.24;
+                    baseSingleAxisRate -= deductions;
+                }
+                ratePerLitre = baseSingleAxisRate;
+            } else {
+                let fatRate = (fat / 100) * 424.68;
+                let snfRate = (snf / 100) * 283.12;
+                ratePerLitre = fatRate + snfRate;
+            }
+        } 
+        // 2. FINE & STANDARD MODES: No Single-Axis. Pure FAT & SNF rate formula.
+        else {
+            let fatRate = (fat / 100) * 424.68;
+            let snfRate = (snf / 100) * 283.12;
+            ratePerLitre = fatRate + snfRate;
+
+            // Fine logic ONLY for 'fine' mode when SNF < 8.0 (Standard mode has no fine)
+            if (mode === 'fine' && snf < 8.0) {
+                let snfShortage = 8.0 - snf;
+                let fineDeduction = (snfShortage / 0.1) * 0.50;
+                ratePerLitre -= fineDeduction;
+                if (ratePerLitre < 0) ratePerLitre = 0;
+            }
         }
 
         let totalAmount = ratePerLitre * qty;
